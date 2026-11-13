@@ -15,8 +15,20 @@ Requires [Bun](https://bun.sh) 1.3 or later.
 
 ```bash
 bun add -d github:onecompanion-net/game-cli
-bunx onecompanion-game --help
 ```
+
+Add scripts to your `package.json` and run the CLI through them (`bun run validate`, `bun run publish:game`), which
+use the copy in `node_modules`:
+
+```json
+"scripts": {
+	"validate": "onecompanion-game validate .",
+	"publish:game": "onecompanion-game publish ."
+}
+```
+
+Do not use `bunx onecompanion-game`: when the package is not installed, `bunx` downloads whatever package has that
+name from the public registry. The full developer guide is at `https://onecompanion.net/developers/guide`.
 
 ## Commands
 
