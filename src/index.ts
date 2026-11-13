@@ -202,12 +202,18 @@ async function call<T>(
 		method,
 		headers: {
 			authorization: `Bearer ${api.token}`,
-			...(type ? { 'content-type': type } : {})
+			// Always typed: SvelteKit's CSRF check rejects an untyped POST that carries no Origin.
+			'content-type': type ?? 'application/json'
 		},
 		...(body !== undefined ? { body: body as BodyInit_ } : {})
 	});
 	const text = await res.text();
-	const json = text ? (JSON.parse(text) as T & { error?: string; issues?: Issue[] }) : ({} as T);
+	let json: T & { error?: string; issues?: Issue[] };
+	try {
+		json = text ? JSON.parse(text) : ({} as T);
+	} catch {
+		throw new CliError(`${method} ${path}: ${res.status} ${text.slice(0, 200)}`);
+	}
 	if (!res.ok) {
 		const j = json as { error?: string; issues?: Issue[] };
 		throw new CliError(
