@@ -36,9 +36,11 @@ Uploads need a studio token (`--token` or `ONECOMPANION_TOKEN`), made on your st
 
 **Client** (required): an ES module exporting `mount(host, options)`, returning
 `{ onMessage(bytes), pause(), resume(), dispose() }`. `options` carries `t(key, params)` for every string, `locale`,
-`dir` (`ltr`/`rtl`), `online` (`{ selfId, send(bytes) }`, absent in solo) and `onEvent` (`ready`, `state`,
-`complete`, `fatal`). Your game runs in a sandboxed frame on its own origin: it has no network access except
-`online.send`, no cookies, and must undo everything in `dispose()`.
+`dir` (`ltr`/`rtl`), `online` (`{ selfId, send(bytes) }`, absent in solo), `storage` (`get`, `set`, `delete`,
+`keys`: your saved data, kept by the platform, up to 10 MB) and `onEvent` (`ready`, `state`, `complete`, `fatal`).
+Your game is served by OneCompanion and runs in a sandboxed frame with an anonymous origin: it has no cookies, no
+browser storage of its own (use `options.storage`; a `localStorage` stand-in backed by it is provided for engines
+that expect one), no network access except `online.send`, and must undo everything in `dispose()`.
 
 **Multiplayer** (`realtime.kind` in `game.json`):
 
