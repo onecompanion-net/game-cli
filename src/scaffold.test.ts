@@ -31,6 +31,9 @@ describe('init', () => {
 				studio: 'acme'
 			});
 			expect((await readFile(join(dir, 'src/client.ts'), 'utf8')).includes('{{')).toBe(false);
+			// A lockstep room sends ticks every step, not once a second.
+			if (template === 'lockstep')
+				expect(m.realtime).toMatchObject({ tickRate: 15, snapshotRate: 15 });
 			const lenient = await pack(dir, undefined, { allowUntranslated: true });
 			expect(lenient.report.issues).toEqual([]);
 			// Uploads refuse the English copies until they are translated.

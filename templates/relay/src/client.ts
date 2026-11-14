@@ -57,7 +57,8 @@ export async function mount(host: HTMLElement, o: MountOptions): Promise<GameHan
 	let ripples: Ripple[] = [];
 	const me: Light = { x: 0.5, y: 0.5 };
 	let dirty = false;
-	const send = o.online ? rateLimited(o.online.send) : null;
+	const online = o.online; // absent in solo: never send then (sending in solo is a strike)
+	const send = online ? rateLimited((b) => online.send(b)) : null;
 
 	const encode = (type: number, x: number, y: number) => {
 		const b = new Uint8Array(5);

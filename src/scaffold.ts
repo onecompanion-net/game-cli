@@ -53,8 +53,9 @@ const KIND: Record<
 	lockstep: {
 		modes: ['solo', 'coop'],
 		players: { min: 1, max: 4 },
-		// tickRate is the step rate: keep it equal to STEP_RATE in src/sim.ts.
-		realtime: { kind: 'lockstep', tickRate: 15, snapshotRate: 0, protocol: 1 }
+		// tickRate is the step rate: keep it equal to STEP_RATE in src/sim.ts. snapshotRate is how often the room
+		// sends ticks (0 would mean one a second: play would move in jerks).
+		realtime: { kind: 'lockstep', tickRate: 15, snapshotRate: 15, protocol: 1 }
 	}
 };
 
