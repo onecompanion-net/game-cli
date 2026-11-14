@@ -9,8 +9,12 @@
  */
 import { z } from 'zod';
 
-/** The platform's locales (apps/web/project.inlang/settings.json). `en` is the source locale. */
-export const LOCALES = [
+/**
+ * Locales a bundle must ship store listing text for (decision D3): the platform's launch set. Locales added later
+ * (LOCALES below) are optional in a bundle, so a game that passed review keeps passing; the store shows the English
+ * listing where a game has none.
+ */
+export const LISTING_LOCALES = [
 	'en',
 	'vi',
 	'zh-hans',
@@ -24,10 +28,22 @@ export const LOCALES = [
 	'ur',
 	'id'
 ] as const;
+/** The platform's locales (apps/web/project.inlang/settings.json). `en` is the source locale. */
+export const LOCALES = [
+	...LISTING_LOCALES,
+	'ja',
+	'ko',
+	'de',
+	'tr',
+	'th',
+	'fil',
+	'it',
+	'pl'
+] as const;
 export type Locale = (typeof LOCALES)[number];
 
 /** Keys of the platform's GENRES and MODES (apps/web/src/lib/games/catalog.ts; a web test keeps them equal). */
-export const GENRE_KEYS = ['action', 'shooter', 'idle', 'rpg'] as const;
+export const GENRE_KEYS = ['action', 'shooter', 'idle', 'rpg', 'sim', 'app'] as const;
 export const MODE_KEYS = ['tdm', 'ffa', 'coop', 'solo'] as const;
 
 /**
@@ -59,7 +75,9 @@ export const LIMITS = {
 		aboutParagraphs: 4,
 		seoTitle: 70,
 		seoDescription: 170,
-		coverAlt: 160
+		coverAlt: 160,
+		play: 24,
+		modeCard: 160
 	}
 } as const;
 
@@ -224,6 +242,8 @@ export function compareSemver(a: string, b: string): number {
 	return x.pre < y.pre ? -1 : 1;
 }
 
+const ModeCard = z.string().trim().min(1).max(LIMITS.text.modeCard).optional();
+
 /** The listing file shape (`listing/<locale>.json`). */
 export const ListingSchema = z.object({
 	tagline: z.string().trim().min(1).max(LIMITS.text.tagline),
@@ -234,6 +254,19 @@ export const ListingSchema = z.object({
 		.max(LIMITS.text.aboutParagraphs),
 	seoTitle: z.string().trim().min(1).max(LIMITS.text.seoTitle),
 	seoDescription: z.string().trim().min(1).max(LIMITS.text.seoDescription),
-	coverAlt: z.string().trim().min(1).max(LIMITS.text.coverAlt)
+	coverAlt: z.string().trim().min(1).max(LIMITS.text.coverAlt),
+	/** The main play button's label (default "Play now"). */
+	play: z.string().trim().min(1).max(LIMITS.text.play).optional(),
+	/** One line per mode for the mode cards on the game page (default: the platform's generic line). */
+	modes: z
+		.object({ tdm: ModeCard, ffa: ModeCard, coop: ModeCard, solo: ModeCard })
+		.strict()
+		.optional()
 });
+
+/**
+ * A text file (`messages/<locale>.json` or `listing/<locale>.json`) carrying this key at the top is a copy of
+ * English waiting for translation (`onecompanion-game i18n` writes them). Uploads refuse such files.
+ */
+export const UNTRANSLATED = '$untranslated';
 export type Listing = z.infer<typeof ListingSchema>;

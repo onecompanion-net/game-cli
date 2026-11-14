@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { validateBundle } from './bundle.ts';
-import { bundle, fakeJpeg, fakeWebp, manifest } from './fixtures.ts';
+import { bundle, fakeJpeg, fakeWebp, LISTING, manifest } from './fixtures.ts';
 import { imageSize, isSafePath, magicMatches, resolveRelative, staticImports } from './files.ts';
 import { formatIcu, icuArgs, parseIcu, translator } from './icu.ts';
 import { compareSemver, parseManifest, roomKind } from './schema.ts';
@@ -159,6 +159,12 @@ describe('validateBundle', () => {
 			(await validateBundle(listing.manifest, listing.ctx)).issues.map((i) => i.path)
 		).toContain('listing/ar.json');
 
+		// A newer platform locale is optional, but checked like the others when it is there.
+		const extra = await bundle(manifest(), { 'listing/ja.json': JSON.stringify({ tagline: 1 }) });
+		expect((await validateBundle(extra.manifest, extra.ctx)).issues.map((i) => i.path)).toContain(
+			'listing/ja.json'
+		);
+
 		const bare = await bundle(manifest(), {
 			'client/draw.js': "import * as THREE from 'three';\nexport const draw = 1;"
 		});
@@ -179,6 +185,51 @@ describe('validateBundle', () => {
 		expect((await validateBundle(kind.manifest, { ...kind.ctx, allowedKinds: ['none'] })).ok).toBe(
 			false
 		);
+	});
+
+	it('refuses untranslated copies unless asked to only list them', async () => {
+		const marked = (o: Record<string, unknown>) => JSON.stringify({ $untranslated: true, ...o });
+		const b = await bundle(manifest(), {
+			'listing/fr.json': marked(LISTING),
+			'messages/vi.json': marked({ hello: 'Hello {name}', count: '{n, plural, other {# points}}' })
+		});
+		const strict = await validateBundle(b.manifest, b.ctx);
+		expect(strict.ok).toBe(false);
+		expect(strict.untranslated.sort()).toEqual(['listing/fr.json', 'messages/vi.json']);
+		expect(strict.issues.map((i) => i.path).sort()).toEqual([
+			'listing/fr.json',
+			'messages/vi.json'
+		]);
+		const lenient = await validateBundle(b.manifest, b.ctx, { allowUntranslated: true });
+		expect(lenient.issues).toEqual([]);
+		expect(lenient.untranslated).toHaveLength(2);
+	});
+
+	it('checks the optional play label and mode cards', async () => {
+		const good = await bundle(manifest(), {
+			'listing/en.json': JSON.stringify({
+				...LISTING,
+				play: 'Defend the hill',
+				modes: { coop: 'Hold the hill with friends.', solo: 'Practise alone.' }
+			})
+		});
+		const r = await validateBundle(good.manifest, good.ctx);
+		expect(r.issues).toEqual([]);
+		expect((r.listing.en as { modes: unknown }).modes).toEqual({
+			coop: 'Hold the hill with friends.',
+			solo: 'Practise alone.'
+		});
+		const bad = await bundle(manifest(), {
+			'listing/en.json': JSON.stringify({ ...LISTING, modes: { tdm: 'Teams.', solo: '<b>x</b>' } })
+		});
+		const bi = (await validateBundle(bad.manifest, bad.ctx)).issues.map((i) => i.message);
+		expect(bi).toContain('markup is not allowed');
+		const unknown = await bundle(manifest(), {
+			'listing/en.json': JSON.stringify({ ...LISTING, modes: { tdm: 'Teams.' } })
+		});
+		expect(
+			(await validateBundle(unknown.manifest, unknown.ctx)).issues.map((i) => i.message)
+		).toContain('modes.tdm: the game has no tdm mode');
 	});
 
 	it('checks a server module', async () => {

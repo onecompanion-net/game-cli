@@ -1,0 +1,5 @@
+{
+	"title": "{{title}}",
+	"hint_solo": "Move and tap. Open a room to see other players' lights.",
+	"players": "{count, plural, one {# player here} other {# players here}}"
+}

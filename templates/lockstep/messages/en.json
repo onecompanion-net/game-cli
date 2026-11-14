@@ -1,0 +1,6 @@
+{
+	"title": "{{title}}",
+	"hint": "Tap anywhere to send your unit there and collect the beacons.",
+	"score": "{count, plural, one {# beacon} other {# beacons}}",
+	"desync": "Out of step with the room. Rejoin to catch up."
+}

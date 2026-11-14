@@ -17,12 +17,15 @@ import {
 import {
 	LIMITS,
 	ListingSchema,
+	LISTING_LOCALES,
 	LOCALES,
 	parseManifest,
 	roomKind,
 	type Issue,
+	type Listing,
 	type Manifest,
-	type RoomKind
+	type RoomKind,
+	UNTRANSLATED
 } from './schema.ts';
 
 export interface BundleFile {
@@ -49,6 +52,13 @@ export interface BundleReport {
 	totalBytes: number;
 	/** Listing texts by locale (when they parsed). */
 	listing: Record<string, unknown>;
+	/** Text files still marked as untranslated English copies. */
+	untranslated: string[];
+}
+
+export interface ValidateOptions {
+	/** Report files marked untranslated in `untranslated` only, not as issues (the CLI's `validate`; never uploads). */
+	allowUntranslated?: boolean;
 }
 
 /** Media sizes the catalog uses (section 2.1). */
@@ -64,17 +74,29 @@ export const thumbOf = (still: string) => still.replace(/\.webp$/, '-thumb.webp'
 
 export async function validateBundle(
 	manifestJson: unknown,
-	ctx: BundleContext
+	ctx: BundleContext,
+	opts: ValidateOptions = {}
 ): Promise<BundleReport> {
 	const issues: Issue[] = [];
 	const add = (path: string, message: string) => issues.push({ path, message });
+	const untranslated: string[] = [];
+	const markedUntranslated = (path: string, json: unknown) => {
+		if (!json || typeof json !== 'object' || !(UNTRANSLATED in json)) return;
+		untranslated.push(path);
+		if (!opts.allowUntranslated)
+			add(
+				path,
+				`still an untranslated copy of English: translate it, then remove "${UNTRANSLATED}"`
+			);
+	};
 	const report = (manifest: Manifest | null, clientGzipBytes = 0): BundleReport => ({
 		ok: issues.length === 0,
 		issues,
 		manifest,
 		clientGzipBytes,
 		totalBytes,
-		listing
+		listing,
+		untranslated
 	});
 	const listing: Record<string, unknown> = {};
 	const byPath = new Map(ctx.files.map((f) => [f.path, f]));
@@ -174,9 +196,10 @@ export async function validateBundle(
 			if (json !== undefined) add(path, 'must be an object of key → message');
 			continue;
 		}
+		if (loc !== 'en') markedUntranslated(path, json);
 		const table: Record<string, string> = {};
 		for (const [k, v] of Object.entries(json as Record<string, unknown>)) {
-			if (k === '$schema') continue;
+			if (k === '$schema' || k === UNTRANSLATED) continue;
 			if (!/^[a-z][a-z0-9_]{0,63}$/.test(k))
 				add(path, `key "${k}": lowercase letters, digits and _ only`);
 			if (typeof v !== 'string') add(path, `${k}: must be a string`);
@@ -217,22 +240,28 @@ export async function validateBundle(
 		}
 	}
 
-	// 5. Listing: all 12 platform locales (decision D3), within length limits.
+	// 5. Listing: the 12 launch locales are required (decision D3); later platform locales are optional, and checked
+	// the same way when present. All within length limits.
+	const required = new Set<string>(LISTING_LOCALES);
 	for (const loc of LOCALES) {
 		const path = `${m.listing}/${loc}.json`;
+		if (!required.has(loc) && !byPath.has(path)) continue;
 		if (!need(path, `listing text for ${loc}`)) continue;
 		const json = await readJson(ctx, path, add);
 		if (json === undefined) continue;
-		const r = ListingSchema.safeParse(json);
+		if (loc !== 'en') markedUntranslated(path, json);
+		const text = json && typeof json === 'object' ? { ...(json as Record<string, unknown>) } : json;
+		if (text && typeof text === 'object') delete (text as Record<string, unknown>)[UNTRANSLATED];
+		const r = ListingSchema.safeParse(text);
 		if (!r.success)
 			for (const i of r.error.issues) add(path, `${i.path.join('.') || 'listing'}: ${i.message}`);
-		else if (
-			Object.values(r.data)
-				.flat()
-				.some((s) => /[<>]/.test(s))
-		)
-			add(path, 'markup is not allowed');
-		else listing[loc] = r.data;
+		else if (listingStrings(r.data).some((s) => /[<>]/.test(s))) add(path, 'markup is not allowed');
+		else {
+			for (const mode of Object.keys(r.data.modes ?? {}))
+				if (!(m.modes as string[]).includes(mode))
+					add(path, `modes.${mode}: the game has no ${mode} mode`);
+			listing[loc] = r.data;
+		}
 	}
 
 	// 6. Media: formats and exact sizes from the image headers.
@@ -257,6 +286,18 @@ export async function validateBundle(
 
 	return report(m, clientGzipBytes);
 }
+
+/** Every string in a listing, mode cards included. */
+const listingStrings = (l: Listing): string[] => [
+	l.tagline,
+	l.pitch,
+	...l.about,
+	l.seoTitle,
+	l.seoDescription,
+	l.coverAlt,
+	...(l.play ? [l.play] : []),
+	...Object.values(l.modes ?? {}).filter((s): s is string => typeof s === 'string')
+];
 
 async function readJson(
 	ctx: BundleContext,

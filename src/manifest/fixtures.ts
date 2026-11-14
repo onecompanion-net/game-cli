@@ -1,6 +1,6 @@
 /** Test fixtures: a minimal valid bundle built in memory (tiny but correctly sized image headers). */
 import { sha256Hex } from './files.ts';
-import { LOCALES } from './schema.ts';
+import { LISTING_LOCALES } from './schema.ts';
 import type { BundleContext } from './bundle.ts';
 
 /** A VP8X WebP header claiming the given size (enough for header checks, not a decodable image). */
@@ -127,7 +127,10 @@ export async function bundle(
 		}),
 		'media/cover.webp': fakeWebp(1280, 720),
 		'media/share.jpg': fakeJpeg(1200, 630),
-		...Object.fromEntries(LOCALES.map((l) => [`listing/${l}.json`, JSON.stringify(LISTING)])),
+		// The required listings only, as a game built before the newer locales would ship.
+		...Object.fromEntries(
+			LISTING_LOCALES.map((l) => [`listing/${l}.json`, JSON.stringify(LISTING)])
+		),
 		...Object.fromEntries(
 			[1, 2, 3].flatMap((i) => [
 				[`media/still-${i}.webp`, fakeWebp(1280, 720)],

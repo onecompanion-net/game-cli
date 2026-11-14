@@ -9,7 +9,7 @@
  *   client/                  the built client: ES modules (entry + split chunks) and its static files
  *   server.js                the built server module, one file with no imports (realtime.kind "server")
  *   messages/<locale>.json   in-game text
- *   listing/<locale>.json    catalog text, all 12 locales
+ *   listing/<locale>.json    catalog text: the 12 launch locales required, the platform's others optional
  *   media/                   cover.webp, still-N.webp + still-N-thumb.webp, share.jpg
  *   source/                  the source the bundle was built from (for review; never served)
  */
@@ -25,7 +25,8 @@ import {
 	type BundleFile,
 	type BundleReport,
 	type Issue,
-	type Manifest
+	type Manifest,
+	type ValidateOptions
 } from './manifest/index.ts';
 
 type BodyInit_ = NonNullable<RequestInit['body']>;
@@ -74,8 +75,15 @@ export interface PackResult {
 	report: BundleReport;
 }
 
-/** Build and lay out the bundle in `out` (default `<dir>/bundle`), then validate it. */
-export async function pack(dir: string, out = join(dir, 'bundle')): Promise<PackResult> {
+/**
+ * Build and lay out the bundle in `out` (default `<dir>/bundle`), then validate it. `allowUntranslated` lists text
+ * files still marked untranslated in the report instead of failing (`validate`; uploads always refuse them).
+ */
+export async function pack(
+	dir: string,
+	out = join(dir, 'bundle'),
+	opts: ValidateOptions = {}
+): Promise<PackResult> {
 	dir = resolve(dir);
 	out = resolve(out);
 	const { manifest: m, raw } = await readSourceManifest(dir);
@@ -153,7 +161,7 @@ export async function pack(dir: string, out = join(dir, 'bundle')): Promise<Pack
 
 	const files = await listFiles(out);
 	await writeFile(join(out, 'files.json'), `${JSON.stringify(files, null, '\t')}\n`);
-	const report = await validateDir(out, bundleManifest, files);
+	const report = await validateDir(out, bundleManifest, files, opts);
 	return { out, files, manifest: bundleManifest, report };
 }
 
@@ -170,17 +178,19 @@ export async function listFiles(out: string): Promise<BundleFile[]> {
 export async function validateDir(
 	out: string,
 	manifest?: Record<string, unknown>,
-	files?: BundleFile[]
+	files?: BundleFile[],
+	opts: ValidateOptions = {}
 ): Promise<BundleReport> {
 	manifest ??= JSON.parse(await readFile(join(out, 'game.json'), 'utf8')) as Record<
 		string,
 		unknown
 	>;
 	files ??= await listFiles(out);
-	return validateBundle(manifest, {
-		files,
-		read: async (p) => new Uint8Array(await readFile(join(out, p)))
-	});
+	return validateBundle(
+		manifest,
+		{ files, read: async (p) => new Uint8Array(await readFile(join(out, p))) },
+		opts
+	);
 }
 
 /* --------------------------------- upload --------------------------------- */

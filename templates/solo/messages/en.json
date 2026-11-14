@@ -1,0 +1,7 @@
+{
+	"title": "{{title}}",
+	"hint": "Tap to start, then catch the sparks before they fade.",
+	"score": "{count, plural, one {# spark} other {# sparks}}",
+	"time_left": "{seconds, plural, one {# second left} other {# seconds left}}",
+	"best": "Best: {count, plural, one {# spark} other {# sparks}}"
+}

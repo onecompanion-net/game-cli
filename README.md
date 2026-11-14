@@ -9,9 +9,40 @@ same way the platform will, and uploads it for review. A working example lives a
 > This repository is generated from the OneCompanion monorepo (`packages/game-cli` and `packages/game-manifest`,
 > exported by `scripts/export-game-cli.ts`). Open changes there.
 
-## Install
+## Start a new game
 
 Requires [Bun](https://bun.sh) 1.3 or later.
+
+```bash
+bunx github:onecompanion-net/game-cli init my-game --template relay --studio your-studio
+cd my-game && bun install && bun run dev
+```
+
+Three templates, each a small playable game that passes `validate` as generated (plain canvas, no engine):
+
+| Template   | What you get                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+| `solo`     | A solo game with a saved best score: the smallest complete game on the contract                    |
+| `relay`    | Everyone in the room moves a light; shows coalesced, validated messages and the roster             |
+| `lockstep` | Each player commands their own unit; a deterministic simulation with a test, and a local solo room |
+
+Replace the placeholder art in `art/` (same sizes), write `listing/en.json`, and choose your game id before the
+first upload: it becomes the URL and can never be reused.
+
+## Translate
+
+```bash
+onecompanion-game i18n .                 # the 12 required store languages, plus every language game.json lists
+onecompanion-game i18n . --locales ja,ko # add languages to the game itself (in-game text too)
+onecompanion-game i18n . --locales all   # every platform language
+```
+
+`i18n` writes each missing file as a copy of English marked `"$untranslated": true`, adds the keys English gained to
+files already translated (marked with those keys), and prints a prompt to paste into your own AI coding tool, which
+translates them. Nothing is sent anywhere. `validate` notes marked files; `publish` and the platform refuse them, so
+an English copy never reaches players as a translation.
+
+## Install in an existing game
 
 ```bash
 bun add -d github:onecompanion-net/game-cli
@@ -23,6 +54,7 @@ use the copy in `node_modules`:
 ```json
 "scripts": {
 	"validate": "onecompanion-game validate .",
+	"i18n": "onecompanion-game i18n .",
 	"publish:game": "onecompanion-game publish ."
 }
 ```
@@ -34,6 +66,8 @@ name from the public registry. The full developer guide is at `https://onecompan
 
 | Command                                 | What it does                                                            |
 | --------------------------------------- | ----------------------------------------------------------------------- |
+| `onecompanion-game init [dir] -t kind`  | Starts a new game from the `solo`, `relay` or `lockstep` template       |
+| `onecompanion-game i18n [dir]`          | Adds missing languages as marked copies and prints a translation prompt |
 | `onecompanion-game validate [dir]`      | Checks `game.json`, builds the bundle into `<dir>/bundle` and checks it |
 | `onecompanion-game pack [dir] --out d`  | Builds the upload bundle                                                |
 | `onecompanion-game publish [dir]`       | Packs, uploads every file and submits the version for review            |
@@ -82,7 +116,7 @@ and summarised in the sample game's README.
 	"realtime": { "kind": "relay", "tickRate": 0, "snapshotRate": 0, "protocol": 1 },
 	"locales": ["en"], // in-game text you ship; en is required
 	"messages": "./messages", // <locale>.json, flat keys, ICU plural/select allowed, no markup
-	"listing": "./listing", // <locale>.json for all 12 platform locales (store text)
+	"listing": "./listing", // <locale>.json for the 12 launch locales, more optional (store text)
 	"media": {
 		"cover": "./art/cover.webp", // 1280×720 webp
 		"stills": ["./art/a.webp", "./art/b.webp", "./art/c.webp"], // 3–8 × 1280×720, each with a -thumb.webp 320×180
@@ -104,7 +138,11 @@ and summarised in the sample game's README.
 }
 ```
 
-The 12 platform locales are `en vi zh-hans hi es fr ar bn pt-br ru ur id`.
+A listing may also set `play` (the play button's label, up to 24 characters) and `modes` (one line per mode for the
+mode cards, up to 160 characters each, for modes the game has), e.g.
+`"modes": { "coop": "Hold the hill with friends.", "solo": "Practise alone." }`.
+
+Listing text is required for the 12 launch locales `en vi zh-hans hi es fr ar bn pt-br ru ur id`, and optional for the platform's newer locales `ja ko de tr th fil it pl` (the store shows your English listing there until you add one).
 
 ## What the upload contains
 
@@ -115,7 +153,6 @@ messages/  listing/  media/  source/ (your source, for review only; never served
 
 The platform never unpacks archives: files are uploaded one at a time against the declared list and checked by size
 and SHA-256, then validated again before review.
-
 
 ## License
 
