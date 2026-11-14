@@ -115,3 +115,10 @@ messages/  listing/  media/  source/ (your source, for review only; never served
 
 The platform never unpacks archives: files are uploaded one at a time against the declared list and checked by size
 and SHA-256, then validated again before review.
+
+
+## License
+
+[PolyForm Shield License 1.0.0](LICENSE.md) with the OneCompanion Games Exception (see [NOTICE.md](NOTICE.md)).
+Build, test and publish games with it, and ship your games anywhere. Do not use it to build or run a competing
+game platform, hosting or multiplayer service, or developer tools or AI skills for one.

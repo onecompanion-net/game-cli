@@ -2,6 +2,7 @@
 	"name": "@onecompanion/game-cli",
 	"version": "0.1.0",
 	"description": "Build, check and upload games for the OneCompanion marketplace.",
+	"license": "PolyForm-Shield-1.0.0",
 	"type": "module",
 	"bin": {
 		"onecompanion-game": "./src/cli.ts"
