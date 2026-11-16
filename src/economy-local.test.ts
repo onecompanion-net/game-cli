@@ -82,6 +82,15 @@ describe('vendored progression', () => {
 	});
 });
 
+describe('template contract', () => {
+	const sdk = new URL('../../platform-sdk/src/game.ts', import.meta.url);
+	it.skipIf(!inMonorepo)('is the platform SDK contract unchanged', async () => {
+		const body = (s: string) => s.slice(s.indexOf('export type Translate'));
+		const here = new URL('../templates/base/src/contract.ts', import.meta.url);
+		expect(body(await Bun.file(here).text())).toBe(body(await Bun.file(sdk).text()));
+	});
+});
+
 describe('headless test', () => {
 	it('passes the persistent-rpg template as generated', async () => {
 		const dir = join(root, 'game-rpg');
