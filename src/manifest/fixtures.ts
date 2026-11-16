@@ -155,3 +155,24 @@ export async function bundle(
 		ctx: { files: list, read: async (p) => contents.get(p) ?? new Uint8Array() }
 	};
 }
+
+/** A binary glTF with the given JSON chunk (and an empty BIN chunk). */
+export function fakeGlb(json: object): Uint8Array {
+	let text = JSON.stringify(json);
+	while (text.length % 4) text += ' ';
+	const body = new TextEncoder().encode(text);
+	const out = new Uint8Array(12 + 8 + body.length + 8);
+	const dv = new DataView(out.buffer);
+	out.set(
+		[...'glTF'].map((c) => c.charCodeAt(0)),
+		0
+	);
+	dv.setUint32(4, 2, true);
+	dv.setUint32(8, out.length, true);
+	dv.setUint32(12, body.length, true);
+	dv.setUint32(16, 0x4e4f534a, true);
+	out.set(body, 20);
+	dv.setUint32(20 + body.length, 0, true);
+	dv.setUint32(24 + body.length, 0x004e4942, true);
+	return out;
+}

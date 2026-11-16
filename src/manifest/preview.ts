@@ -63,6 +63,8 @@ export interface SandboxStatus {
 	published: string | null;
 	/** Versions served without a token: the published one and recently superseded ones (rooms still open). */
 	served: string[];
+	/** Asset library files staff took down (`<hash>.<ext>`): served as a neutral placeholder. */
+	pulled?: string[];
 }
 
 export const EMPTY_STATUS: SandboxStatus = { suspended: false, published: null, served: [] };

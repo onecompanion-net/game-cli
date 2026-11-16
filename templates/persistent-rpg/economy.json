@@ -1,0 +1,20 @@
+{
+	"v": 1,
+	"items": [
+		{ "id": "wanderer", "kind": "character", "name": { "en": "Wanderer" } },
+		{ "id": "short_sword", "kind": "weapon", "name": { "en": "Short sword" } },
+		{ "id": "potion", "kind": "consumable", "name": { "en": "Potion" } }
+	],
+	"affixes": [{ "id": "of_embers", "applies_to": ["weapon"], "attributes": { "fire": [2, 8] } }],
+	"loot_tables": [
+		{
+			"id": "crypt",
+			"level": [1, 50],
+			"entries": [
+				{ "base": "potion", "qualities": ["normal"], "weight": 70 },
+				{ "base": "short_sword", "qualities": ["magic"], "weight": 30 }
+			]
+		}
+	],
+	"quality_caps": { "normal": 600, "magic": 120 }
+}

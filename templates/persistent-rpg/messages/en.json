@@ -1,0 +1,13 @@
+{
+	"title": "{{title}}",
+	"waiting": "Entering the crypt…",
+	"stats": "Level {level} · {hp} HP · {items, plural, one {# item} other {# items}} · arrows to move, P to drink a potion",
+	"offer": "Offer {item}",
+	"confirm": "Confirm trade",
+	"cancel": "Cancel",
+	"trade_open": "Trade: you give {mine}, you get {theirs}",
+	"trade_done": "Trade done.",
+	"trade_failed": "The trade didn't go through.",
+	"item_potion": "Potion",
+	"item_short_sword": "Short sword"
+}

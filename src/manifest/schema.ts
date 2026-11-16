@@ -8,6 +8,8 @@
  * second.
  */
 import { z } from 'zod';
+import { ManifestEconomySchema } from './economy.ts';
+import { isSafePath } from './files.ts';
 
 /**
  * Locales a bundle must ship store listing text for (decision D3): the platform's launch set. Locales added later
@@ -44,7 +46,7 @@ export type Locale = (typeof LOCALES)[number];
 
 /** Keys of the platform's GENRES and MODES (apps/web/src/lib/games/catalog.ts; a web test keeps them equal). */
 export const GENRE_KEYS = ['action', 'shooter', 'idle', 'rpg', 'sim', 'app'] as const;
-export const MODE_KEYS = ['tdm', 'ffa', 'coop', 'solo'] as const;
+export const MODE_KEYS = ['tdm', 'ffa', 'coop', 'race', 'trial', 'solo'] as const;
 
 /**
  * How a hosted game's rooms run (section 4.4 and 5):
@@ -118,6 +120,21 @@ export const ManifestSchema = z
 				protocol: z.number().int().min(1)
 			})
 			.optional(),
+		/** Scoring and economy hints (docs/economy-plan.md, section 6b). Optional: a game without it gets a preset. */
+		economy: ManifestEconomySchema.optional(),
+		/**
+		 * Asset library paths this version's code needs (docs/economy-plan.md, section 6c). A version is refused when
+		 * the live asset release lacks one, and an asset release is refused when it drops one the live version needs.
+		 */
+		assets: z
+			.object({
+				required: z
+					.array(z.string().max(200).refine(isSafePath, { message: 'a safe relative path' }))
+					.max(500)
+					.default([])
+			})
+			.strict()
+			.optional(),
 		locales: z.array(z.enum(LOCALES)).min(1),
 		messages: RelPath,
 		listing: RelPath.optional(),
@@ -175,7 +192,7 @@ export const ManifestSchema = z
 		if (kind === 'none' && roomModes.length)
 			issue(['modes'], 'room modes need realtime.kind relay, lockstep or server');
 		if (kind !== 'none' && !roomModes.length)
-			issue(['modes'], 'a game with rooms needs a room mode (coop, ffa or tdm)');
+			issue(['modes'], 'a game with rooms needs a room mode (coop, ffa, tdm, race or trial)');
 		if (kind === 'server' && !m.entry.server)
 			issue(['entry', 'server'], 'realtime.kind server needs entry.server');
 		if (kind === 'lockstep' && !m.realtime?.tickRate)
@@ -259,7 +276,14 @@ export const ListingSchema = z.object({
 	play: z.string().trim().min(1).max(LIMITS.text.play).optional(),
 	/** One line per mode for the mode cards on the game page (default: the platform's generic line). */
 	modes: z
-		.object({ tdm: ModeCard, ffa: ModeCard, coop: ModeCard, solo: ModeCard })
+		.object({
+			tdm: ModeCard,
+			ffa: ModeCard,
+			coop: ModeCard,
+			race: ModeCard,
+			trial: ModeCard,
+			solo: ModeCard
+		})
 		.strict()
 		.optional()
 });

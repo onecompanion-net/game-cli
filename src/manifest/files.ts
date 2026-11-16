@@ -9,6 +9,9 @@ export const CONTENT_TYPES: Readonly<Record<string, string>> = {
 	png: 'image/png',
 	jpg: 'image/jpeg',
 	jpeg: 'image/jpeg',
+	avif: 'image/avif',
+	ktx2: 'image/ktx2',
+	glb: 'model/gltf-binary',
 	ogg: 'audio/ogg',
 	mp3: 'audio/mpeg',
 	woff2: 'font/woff2'
@@ -58,6 +61,15 @@ export function magicMatches(ext: string, b: Uint8Array): boolean {
 			return ascii(b, 0, 3) === 'ID3' || (b[0] === 0xff && (b[1]! & 0xe0) === 0xe0);
 		case 'woff2':
 			return ascii(b, 0, 4) === 'wOF2';
+		case 'glb':
+			return ascii(b, 0, 4) === 'glTF';
+		case 'ktx2':
+			return startsWith(
+				b,
+				[0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a]
+			);
+		case 'avif':
+			return ascii(b, 4, 4) === 'ftyp' && ['avif', 'avis'].includes(ascii(b, 8, 4));
 		case 'js':
 		case 'json': {
 			let text: string;
@@ -173,4 +185,36 @@ export function resolveRelative(from: string, spec: string): string | null {
 		} else parts.push(seg);
 	}
 	return parts.join('/');
+}
+
+/**
+ * A binary glTF must carry everything it needs (docs/economy-plan.md, section 6c): no buffer or image may point at
+ * another file or a `data:` URI, so a model can never reach outside its own bytes. Returns problems, or [] when fine.
+ */
+export function glbProblems(b: Uint8Array): string[] {
+	if (b.length < 20 || ascii(b, 0, 4) !== 'glTF') return ['not a binary glTF'];
+	const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+	if (dv.getUint32(4, true) !== 2) return ['only glTF 2.0 is supported'];
+	if (dv.getUint32(8, true) !== b.length) return ['the header length does not match the file'];
+	const jsonLength = dv.getUint32(12, true);
+	if (dv.getUint32(16, true) !== 0x4e4f534a || 20 + jsonLength > b.length)
+		return ['the first chunk must be the JSON chunk'];
+	let gltf: { buffers?: { uri?: unknown }[]; images?: { uri?: unknown }[] };
+	try {
+		gltf = JSON.parse(
+			new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(
+				b.subarray(20, 20 + jsonLength)
+			)
+		);
+	} catch {
+		return ['the JSON chunk is not valid JSON'];
+	}
+	const out: string[] = [];
+	(gltf.buffers ?? []).forEach((x, i) => {
+		if (x?.uri !== undefined) out.push(`buffers[${i}] points at a file or data URI: embed it`);
+	});
+	(gltf.images ?? []).forEach((x, i) => {
+		if (x?.uri !== undefined) out.push(`images[${i}] points at a file or data URI: embed it`);
+	});
+	return out;
 }

@@ -11,6 +11,7 @@ import {
 	imageSize,
 	isSafePath,
 	magicMatches,
+	glbProblems,
 	resolveRelative,
 	staticImports
 } from './files.ts';
@@ -131,8 +132,10 @@ export async function validateBundle(
 			continue;
 		}
 		if (f.path === 'game.json') continue;
-		const head = (await ctx.read(f.path)).subarray(0, 4096);
-		if (!magicMatches(ext, head)) add(f.path, `content does not look like .${ext}`);
+		const bytes = await ctx.read(f.path);
+		if (!magicMatches(ext, bytes.subarray(0, 4096)))
+			add(f.path, `content does not look like .${ext}`);
+		else if (ext === 'glb') for (const p of glbProblems(bytes)) add(f.path, p);
 	}
 	const need = (path: string, why: string) => {
 		if (!byPath.has(path)) add(path, `missing (${why})`);

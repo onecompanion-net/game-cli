@@ -4,7 +4,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { LOCALES } from './manifest/index.ts';
 import { fakeJpeg, fakeWebp, LISTING, manifest } from './manifest/fixtures.ts';
-import { pack, upload } from './index.ts';
+import {
+	economyCheck,
+	economyPull,
+	economyPush,
+	ECONOMY_FILE,
+	ECONOMY_LOCK,
+	pack,
+	upload
+} from './index.ts';
 
 const root = await mkdtemp(join(tmpdir(), 'oc-cli-'));
 afterAll(() => rm(root, { recursive: true, force: true }));
@@ -105,5 +113,50 @@ describe('upload', () => {
 			r.files.length
 		);
 		expect(calls.at(-1)).toBe('POST /api/dev/versions/v1/finalise');
+	});
+});
+
+describe('economy as code', () => {
+	it('pulls with a lock, pushes with it, and surfaces a stale push as an error', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'oc-econ-'));
+		const sent: { method: string; path: string; body?: unknown }[] = [];
+		let stale = false;
+		const fakeFetch = (async (url: URL, init: RequestInit) => {
+			sent.push({
+				method: init.method!,
+				path: url.pathname,
+				body: init.body ? JSON.parse(String(init.body)) : undefined
+			});
+			if (init.method === 'GET')
+				return Response.json({ live: { version: 3, doc: { v: 1, defaults: false } }, draft: null });
+			if (init.method === 'PUT')
+				return stale
+					? Response.json({ error: 'stale_base' }, { status: 409 })
+					: Response.json({ state: 'draft', updatedAt: 99, basedOn: 3 });
+			return Response.json({
+				ok: false,
+				issues: [{ path: 'rules.0.id', message: 'duplicate id' }]
+			});
+		}) as unknown as typeof fetch;
+		const api = { url: 'http://x', token: 'tok', fetch: fakeFetch };
+		expect(await economyPull(api, 'g1', dir)).toEqual({ from: 'live' });
+		expect(JSON.parse(await readFile(join(dir, ECONOMY_FILE), 'utf8'))).toEqual({
+			v: 1,
+			defaults: false
+		});
+		await economyPush(api, 'g1', dir);
+		expect(sent.at(-1)).toEqual({
+			method: 'PUT',
+			path: '/api/dev/games/g1/economy',
+			body: { doc: { v: 1, defaults: false }, base: 3, draftAt: null }
+		});
+		expect(JSON.parse(await readFile(join(dir, ECONOMY_LOCK), 'utf8'))).toEqual({
+			base: 3,
+			draftAt: 99
+		});
+		const check = await economyCheck(api, 'g1', dir, 'validate');
+		expect(check).toEqual({ ok: false, issues: [{ path: 'rules.0.id', message: 'duplicate id' }] });
+		stale = true;
+		await expect(economyPush(api, 'g1', dir)).rejects.toThrow(/409 stale_base/);
 	});
 });

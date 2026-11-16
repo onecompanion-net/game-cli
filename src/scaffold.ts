@@ -1,7 +1,8 @@
 /**
  * Starting points and translation help (no network, no cost to anyone):
  *
- * - `init`: a new game from a template (solo, relay or lockstep) that passes `validate` as generated.
+ * - `init`: a new game from a template (solo, relay, lockstep, verified-solo or persistent-rpg) that passes
+ *   `validate` as generated.
  * - `i18n`: writes the missing listing and in-game text files as copies of English marked `$untranslated`, and
  *   prints a prompt for the studio's own AI tool to translate them. Uploads refuse marked files, so nothing
  *   untranslated ever reaches players.
@@ -18,7 +19,7 @@ import {
 } from './manifest/index.ts';
 import { CliError, exists, readSourceManifest } from './index.ts';
 
-export const TEMPLATES = ['solo', 'relay', 'lockstep'] as const;
+export const TEMPLATES = ['solo', 'relay', 'lockstep', 'verified-solo', 'persistent-rpg'] as const;
 export type Template = (typeof TEMPLATES)[number];
 
 const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'templates');
@@ -56,6 +57,19 @@ const KIND: Record<
 		// tickRate is the step rate: keep it equal to STEP_RATE in src/sim.ts. snapshotRate is how often the room
 		// sends ticks (0 would mean one a second: play would move in jerks).
 		realtime: { kind: 'lockstep', tickRate: 15, snapshotRate: 15, protocol: 1 }
+	},
+	// A solo game made ranked by a tiny server module that replays each run (economy plan, section 6b).
+	'verified-solo': {
+		modes: ['solo', 'trial'],
+		players: { min: 1, max: 1 },
+		realtime: { kind: 'server', tickRate: 1, snapshotRate: 1, protocol: 1 }
+	},
+	// Level 5 (economy plan, section 6d): characters, loot and trades. Needs the studio's `server` and
+	// `persistent` permissions, granted by OneCompanion staff.
+	'persistent-rpg': {
+		modes: ['coop'],
+		players: { min: 1, max: 4 },
+		realtime: { kind: 'server', tickRate: 10, snapshotRate: 10, protocol: 1 }
 	}
 };
 
@@ -68,7 +82,12 @@ const MODE_CARDS: Record<Template, Record<string, string>> = {
 	lockstep: {
 		solo: 'Collect beacons with your own unit.',
 		coop: 'Each player commands their own unit. Who collects the most?'
-	}
+	},
+	'verified-solo': {
+		solo: 'Practise the run as often as you like.',
+		trial: 'A timed run, checked by the server: the fastest verified times top the board.'
+	},
+	'persistent-rpg': { coop: 'Clear the crypt with friends, keep your loot, trade what you find.' }
 };
 
 /** Write a new game into `dir` (which must not exist or be empty). */
@@ -117,8 +136,32 @@ export async function init(dir: string, o: InitOptions): Promise<InitResult> {
 		genres: ['action'],
 		players: k.players,
 		modes: k.modes,
-		entry: { client: './src/client.ts' },
+		entry: {
+			client: './src/client.ts',
+			...(o.template === 'persistent-rpg' || o.template === 'verified-solo'
+				? { server: './src/server.ts' }
+				: {})
+		},
 		...(k.realtime ? { realtime: k.realtime } : {}),
+		...(o.template === 'verified-solo'
+			? { economy: { preset: 'solo', stats: ['duration_ms'], milestones: ['g_full_run'] } }
+			: {}),
+		...(o.template === 'persistent-rpg'
+			? {
+					economy: {
+						preset: 'coop',
+						persistent: {
+							slots: 3,
+							character: { kills: 'int' },
+							locations: ['bag', 'stash'],
+							bag_capacity: 60,
+							stash_capacity: 120,
+							hardcore: true,
+							modes: ['coop']
+						}
+					}
+				}
+			: {}),
 		locales: ['en'],
 		messages: './messages',
 		listing: './listing',
@@ -352,7 +395,11 @@ function readme(title: string, template: Template): string {
 		solo: 'a solo game (no rooms)',
 		relay: 'a relay game: the room passes bytes between players',
 		lockstep:
-			'a lockstep game: the room orders every command and each player commands their own unit'
+			'a lockstep game: the room orders every command and each player commands their own unit',
+		'verified-solo':
+			'a ranked solo game: the client plays each run, and src/server.ts replays its inputs with the same code (src/sim.ts) before the time counts. Your studio needs the `server` permission: ask us',
+		'persistent-rpg':
+			'a persistent RPG: characters the platform keeps, loot from your loot tables, and trades. src/server.ts runs on the platform; economy.json holds the classes, items, affixes and loot tables (push it with `onecompanion-game economy push`). Your studio needs the `server` and `persistent` permissions: ask us'
 	}[template];
 	return `# ${title}
 

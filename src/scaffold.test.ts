@@ -27,7 +27,10 @@ describe('init', () => {
 			const m = await readJson(join(dir, 'game.json'));
 			expect(m).toMatchObject({
 				id: `game-${template}`,
-				title: `Game ${template[0]!.toUpperCase()}${template.slice(1)}`,
+				title: `Game ${template
+					.split('-')
+					.map((w) => w[0]!.toUpperCase() + w.slice(1))
+					.join(' ')}`,
 				studio: 'acme'
 			});
 			expect((await readFile(join(dir, 'src/client.ts'), 'utf8')).includes('{{')).toBe(false);

@@ -64,15 +64,19 @@ name from the public registry. The full developer guide is at `https://onecompan
 
 ## Commands
 
-| Command                                 | What it does                                                            |
-| --------------------------------------- | ----------------------------------------------------------------------- |
-| `onecompanion-game init [dir] -t kind`  | Starts a new game from the `solo`, `relay` or `lockstep` template       |
-| `onecompanion-game i18n [dir]`          | Adds missing languages as marked copies and prints a translation prompt |
-| `onecompanion-game validate [dir]`      | Checks `game.json`, builds the bundle into `<dir>/bundle` and checks it |
-| `onecompanion-game pack [dir] --out d`  | Builds the upload bundle                                                |
-| `onecompanion-game publish [dir]`       | Packs, uploads every file and submits the version for review            |
-| `onecompanion-game release <versionId>` | Releases an approved version (or rolls back to an earlier one)          |
-| `onecompanion-game status <versionId>`  | Shows a version's state, automatic issues and review notes              |
+| Command                                 | What it does                                                                   |
+| --------------------------------------- | ------------------------------------------------------------------------------ |
+| `onecompanion-game init [dir] -t kind`  | Starts a new game from the `solo`, `relay` or `lockstep` template              |
+| `onecompanion-game i18n [dir]`          | Adds missing languages as marked copies and prints a translation prompt        |
+| `onecompanion-game validate [dir]`      | Checks `game.json`, builds the bundle into `<dir>/bundle` and checks it        |
+| `onecompanion-game pack [dir] --out d`  | Builds the upload bundle                                                       |
+| `onecompanion-game publish [dir]`       | Packs, uploads every file and submits the version for review                   |
+| `onecompanion-game release <versionId>` | Releases an approved version (or rolls back to an earlier one)                 |
+| `onecompanion-game status <versionId>`  | Shows a version's state, automatic issues and review notes                     |
+| `onecompanion-game economy pull [dir]`  | Writes the game's ruleset to `economy.json` (and `economy.lock.json`)          |
+| `onecompanion-game economy validate`    | Checks `economy.json` with the platform's schema                               |
+| `onecompanion-game economy simulate`    | Replays the game's last 7 days of matches through `economy.json` (totals only) |
+| `onecompanion-game economy push`        | Saves `economy.json` as the draft; an owner publishes it on `/developers`      |
 
 Uploads need a studio token (`--token` or `ONECOMPANION_TOKEN`), made on your studio page at
 `https://onecompanion.net/developers`. `--api` (or `ONECOMPANION_API`) points at another environment, for example

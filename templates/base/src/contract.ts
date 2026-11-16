@@ -42,6 +42,29 @@ export interface MountOptions {
 	onEvent?(event: GameClientEvent): void;
 	/** Saved data, kept by the platform. Absent where the host offers none. */
 	storage?: GameStorage;
+	/** Persistent games only (level 5): trades with another player in the room, run by the platform. */
+	trade?: GameTrade;
+}
+
+export interface TradeGive {
+	instances: readonly string[];
+	currencies: Readonly<Record<string, number>>;
+}
+
+export interface TradeState {
+	with: string;
+	state: 'open' | 'confirmed' | 'done' | 'cancelled' | 'failed';
+	mine: TradeGive;
+	theirs: TradeGive;
+	error?: string;
+}
+
+export interface GameTrade {
+	/** Put up (or change) what you give; any change needs both players to confirm again. */
+	offer(withId: string, give: TradeGive): void;
+	confirm(withId: string): void;
+	cancel(withId: string): void;
+	on(listener: (s: TradeState) => void): () => void;
 }
 
 export interface GameHandle {

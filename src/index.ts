@@ -295,3 +295,175 @@ export const exists = (p: string) =>
 		() => true,
 		() => false
 	);
+
+/* --------------------------------- economy -------------------------------- */
+
+/**
+ * Scoring and economy as code (docs/economy-plan.md, section 6): `economy.json` next to game.json holds the
+ * ruleset, and `economy.lock.json` the versions it was pulled at, so a push over a newer draft or publish is
+ * refused instead of overwriting the console. Pushing makes a draft; an owner publishes it on /developers.
+ */
+export const ECONOMY_FILE = 'economy.json';
+export const ECONOMY_LOCK = 'economy.lock.json';
+
+export interface EconomyLock {
+	/** The live version the file was based on (null: none published). */
+	base: number | null;
+	/** The draft's updatedAt when pulled or last pushed (null: no draft). */
+	draftAt: number | null;
+}
+
+interface EconomyRemote {
+	live: { version: number; doc: unknown } | null;
+	draft: {
+		state: string;
+		basedOn: number | null;
+		updatedAt: number;
+		reviewNote: string | null;
+		doc: unknown;
+	} | null;
+}
+
+/** Write the draft (or else the live ruleset) and its lock into `dir`. */
+export async function economyPull(
+	api: Api,
+	gameId: string,
+	dir: string
+): Promise<{ from: 'draft' | 'live' | 'none'; state?: string; reviewNote?: string | null }> {
+	const r = await call<EconomyRemote>(api, 'GET', `/api/dev/games/${gameId}/economy`);
+	const doc = r.draft?.doc ?? r.live?.doc ?? { v: 1 };
+	const lock: EconomyLock = { base: r.live?.version ?? null, draftAt: r.draft?.updatedAt ?? null };
+	await writeFile(join(dir, ECONOMY_FILE), `${JSON.stringify(doc, null, 2)}\n`);
+	await writeFile(join(dir, ECONOMY_LOCK), `${JSON.stringify(lock, null, 2)}\n`);
+	return r.draft
+		? { from: 'draft', state: r.draft.state, reviewNote: r.draft.reviewNote }
+		: { from: r.live ? 'live' : 'none' };
+}
+
+async function readEconomy(dir: string): Promise<{ doc: unknown; lock: EconomyLock }> {
+	const path = join(dir, ECONOMY_FILE);
+	if (!(await exists(path)))
+		throw new CliError(`no ${ECONOMY_FILE} in ${dir}: run "economy pull" first`);
+	let doc: unknown;
+	try {
+		doc = JSON.parse(await readFile(path, 'utf8'));
+	} catch {
+		throw new CliError(`${ECONOMY_FILE} is not valid JSON`);
+	}
+	const lockPath = join(dir, ECONOMY_LOCK);
+	const lock = (await exists(lockPath))
+		? (JSON.parse(await readFile(lockPath, 'utf8')) as EconomyLock)
+		: { base: null, draftAt: null };
+	return { doc, lock };
+}
+
+/** Check `economy.json` with the server's schema (the same one the console uses). */
+export async function economyCheck(
+	api: Api,
+	gameId: string,
+	dir: string,
+	action: 'validate' | 'simulate'
+): Promise<{ ok: boolean; issues: Issue[]; simulation?: Record<string, unknown> }> {
+	const { doc } = await readEconomy(dir);
+	const r = await call<{ ok: boolean; issues?: Issue[]; simulation?: Record<string, unknown> }>(
+		api,
+		'POST',
+		`/api/dev/games/${gameId}/economy/${action}`,
+		JSON.stringify({ doc })
+	);
+	return {
+		ok: r.ok,
+		issues: r.issues ?? [],
+		...(r.simulation ? { simulation: r.simulation } : {})
+	};
+}
+
+/** Save `economy.json` as the game's draft; refused (409) when the console moved on since the last pull. */
+export async function economyPush(
+	api: Api,
+	gameId: string,
+	dir: string
+): Promise<{ updatedAt: number }> {
+	const { doc, lock } = await readEconomy(dir);
+	const r = await call<{ updatedAt: number; basedOn: number | null }>(
+		api,
+		'PUT',
+		`/api/dev/games/${gameId}/economy`,
+		JSON.stringify({ doc, base: lock.base, draftAt: lock.draftAt })
+	);
+	await writeFile(
+		join(dir, ECONOMY_LOCK),
+		`${JSON.stringify({ base: lock.base, draftAt: r.updatedAt }, null, 2)}\n`
+	);
+	return r;
+}
+
+/* --------------------------------- assets --------------------------------- */
+
+const ASSET_EXTS = new Set([
+	'png',
+	'jpg',
+	'jpeg',
+	'webp',
+	'avif',
+	'glb',
+	'ktx2',
+	'ogg',
+	'mp3',
+	'woff2',
+	'json'
+]);
+
+/**
+ * Upload a folder into the game's asset library draft (docs/economy-plan.md, section 6c): every allowed file, at its
+ * path relative to `folder` (under `prefix`). Files the library already has are stored once. Publishing the release is
+ * an owner's click on /developers.
+ */
+export async function assetsPush(
+	api: Api,
+	gameId: string,
+	folder: string,
+	opts: { prefix?: string; licence: string; credit?: string },
+	log: (line: string) => void = () => {}
+): Promise<{ uploaded: number; skipped: string[] }> {
+	const files: string[] = [];
+	const walk = async (d: string) => {
+		for (const e of await readdir(d, { withFileTypes: true })) {
+			if (e.name.startsWith('.')) continue;
+			const p = join(d, e.name);
+			if (e.isDirectory()) await walk(p);
+			else files.push(p);
+		}
+	};
+	await walk(folder);
+	const skipped: string[] = [];
+	let uploaded = 0;
+	for (const f of files.sort()) {
+		const rel = relative(folder, f).split(sep).join('/');
+		const ext = rel.split('.').pop()?.toLowerCase() ?? '';
+		if (!ASSET_EXTS.has(ext)) {
+			skipped.push(rel);
+			continue;
+		}
+		const path = opts.prefix ? `${opts.prefix.replace(/\/+$/, '')}/${rel}` : rel;
+		const q = new URLSearchParams({
+			path,
+			licence: opts.licence,
+			...(opts.credit ? { credit: opts.credit } : {})
+		});
+		await call(
+			api,
+			'PUT',
+			`/api/dev/games/${gameId}/assets?${q}`,
+			await readFile(f),
+			'application/octet-stream'
+		);
+		log(`  + ${path}`);
+		uploaded++;
+	}
+	return { uploaded, skipped };
+}
+
+export async function assetsStatus(api: Api, gameId: string): Promise<Record<string, unknown>> {
+	return call(api, 'GET', `/api/dev/games/${gameId}/assets`);
+}

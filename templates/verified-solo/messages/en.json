@@ -1,0 +1,11 @@
+{
+	"title": "{{title}}",
+	"waiting": "Getting your run ready…",
+	"practice": "Practice run",
+	"go": "Catch {target} sparks as fast as you can: arrow keys, or tap the left or right half",
+	"progress": "{caught} of {target} · {seconds} s",
+	"checking": "Checking your run…",
+	"verified": "Verified: {seconds} s. It counts on the board.",
+	"not_verified": "That run could not be checked, so it does not count.",
+	"practice_done": "{seconds} s. Play the timed trial to get on the board."
+}
